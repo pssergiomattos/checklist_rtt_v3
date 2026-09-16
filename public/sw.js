@@ -1,5 +1,5 @@
-// Service Worker RTT Check - Versão com estratégia Network-First para navegação (evita tela branca pós-update)
-const CACHE_NAME = 'rtt-check-v26';
+// Service Worker RTT Check - Versão com estratégia Network-First total para evitar congelamento pós-update
+const CACHE_NAME = 'rtt-check-v30';
 const CRITICAL_ASSETS = [
   './manifest.json',
   './logo-192.png',
@@ -12,21 +12,21 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(CRITICAL_ASSETS).catch((err) => {
-        console.warn('[SW] Aviso ao pré-carregar recursos:', err);
+        console.warn('[SW] Aviso ao pré-carregar recursos críticos:', err);
       });
     })
   );
   self.skipWaiting();
 });
 
-// Ativação: apaga todas as versões antigas de cache para evitar scripts desatualizados
+// Ativação: apaga IMEDIATAMENTE todas as versões antigas de cache
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cache) => {
           if (cache !== CACHE_NAME) {
-            console.log('[SW] Removendo cache antigo:', cache);
+            console.log('[SW] Apagando cache legado:', cache);
             return caches.delete(cache);
           }
         })
@@ -41,14 +41,18 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
-  if (event.data && event.data.type === 'CLEAR_ALL_CACHES') {
+  if (event.data && (event.data.type === 'CLEAR_ALL_CACHES' || event.data.type === 'FORCE_PURGE')) {
     caches.keys().then((keys) => {
-      keys.forEach((k) => caches.delete(k));
+      return Promise.all(keys.map((k) => caches.delete(k)));
+    }).then(() => {
+      if (event.ports && event.ports[0]) {
+        event.ports[0].postMessage({ success: true });
+      }
     });
   }
 });
 
-// Estratégia de busca inteligente
+// Estratégia de busca inteligente: Network-First para páginas e scripts (garante sempre a versão mais nova)
 self.addEventListener('fetch', (event) => {
   const request = event.request;
 
@@ -61,13 +65,18 @@ self.addEventListener('fetch', (event) => {
     request.mode === 'navigate' ||
     (request.headers.get('accept') && request.headers.get('accept').includes('text/html'));
 
-  // 1. REQUISIÇÃO DE PÁGINA (HTML / NAVEGAÇÃO): NETWORK-FIRST
-  // Sempre busca a versão mais recente publicada no servidor primeiro.
-  // Se estiver sem sinal de internet (offline), aí sim usa a cópia do cache.
-  if (isNavigation) {
+  const isScriptOrStyle =
+    request.url.includes('/assets/') ||
+    request.url.endsWith('.js') ||
+    request.url.endsWith('.css');
+
+  // 1. NAVEGAÇÃO E SCRIPTS/ESTILOS: NETWORK-FIRST
+  // Garante que o celular receba o código novo assim que você enviar atualizações no GitHub
+  if (isNavigation || isScriptOrStyle) {
     event.respondWith(
       fetch(request)
         .then((networkResponse) => {
+          // Apenas armazena no cache se for uma resposta 200 válida
           if (networkResponse && networkResponse.status === 200) {
             const copy = networkResponse.clone();
             caches.open(CACHE_NAME).then((cache) => {
@@ -77,14 +86,20 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(async () => {
-          // Offline: busca no cache
+          // Falha de rede (offline): tenta obter do cache existente
           const cached = await caches.match(request);
           if (cached) return cached;
-          const fallbackIndex = await caches.match('./index.html');
-          if (fallbackIndex) return fallbackIndex;
-          const rootIndex = await caches.match('./');
-          if (rootIndex) return rootIndex;
-          return new Response('Aplicativo offline. Reconecte-se para carregar a versão mais recente.', {
+
+          if (isNavigation) {
+            const fallbackIndex = await caches.match('./index.html');
+            if (fallbackIndex) return fallbackIndex;
+            const rootIndex = await caches.match('./');
+            if (rootIndex) return rootIndex;
+          }
+
+          return new Response('Recurso indisponível offline.', {
+            status: 503,
+            statusText: 'Service Unavailable',
             headers: { 'Content-Type': 'text/plain; charset=utf-8' },
           });
         })
@@ -92,23 +107,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. DEMAIS RECURSOS (JS, CSS, IMAGENS): STALE-WHILE-REVALIDATE COM FALLBACK
+  // 2. DEMAIS RECURSOS ESTÁTICOS (IMAGENS, ÍCONES, FONTES): CACHE-FIRST COM FALLBACK PARA REDE
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
-      const fetchPromise = fetch(request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const copy = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, copy);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(() => cachedResponse);
-
-      // Se já tiver em cache, entrega rápido enquanto atualiza em segundo plano
-      return cachedResponse || fetchPromise;
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+      return fetch(request).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const copy = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, copy);
+          });
+        }
+        return networkResponse;
+      });
     })
   );
 });
