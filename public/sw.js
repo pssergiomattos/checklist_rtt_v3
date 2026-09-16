@@ -1,5 +1,5 @@
 // Service Worker RTT Check - Versão com estratégia Network-First total para evitar congelamento pós-update
-const CACHE_NAME = 'rtt-check-v30';
+const CACHE_NAME = 'rtt-check-v31';
 const CRITICAL_ASSETS = [
   './manifest.json',
   './logo-192.png',

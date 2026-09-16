@@ -16,15 +16,23 @@ window.resetRttApp = async () => {
   try {
     if ('serviceWorker' in navigator) {
       const registrations = await navigator.serviceWorker.getRegistrations();
-      for (const r of registrations) await r.unregister();
+      await Promise.all(registrations.map((r) => r.unregister()));
     }
     if ('caches' in window) {
       const keys = await caches.keys();
-      for (const k of keys) await caches.delete(k);
+      await Promise.all(keys.map((k) => caches.delete(k)));
     }
     localStorage.removeItem('rtt_audit_logs_cache_v1');
     sessionStorage.clear();
-    window.location.href = window.location.pathname + '?nocache=' + Date.now();
+    const targetUrl = window.location.pathname + '?nocache=' + Date.now();
+    try {
+      window.location.replace(targetUrl);
+    } catch {
+      window.location.href = targetUrl;
+    }
+    setTimeout(() => {
+      window.location.reload();
+    }, 300);
   } catch {
     window.location.reload();
   }
