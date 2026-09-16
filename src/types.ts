@@ -1,5 +1,25 @@
 export type ScreenId = 'home' | 'checklist' | 'orvalho' | 'carcaca' | 'admin-logs';
 
+export const CARGOS_DISPONIVEIS = [
+  'Controle de Qualidade',
+  'Técnico de Emenda',
+  'Técnico de Revestimento',
+  'Liderança',
+  'Supervisão',
+  'Gerência',
+  'Inspetor',
+  'Engenheiro',
+] as const;
+
+export type CargoTipo = (typeof CARGOS_DISPONIVEIS)[number] | string;
+
+export const DOMINIOS_PADRAO = ['@rttshop.com.br', '@rematiptop.com.br'] as const;
+
+export interface EmailRulesResponse {
+  defaultDomains: string[];
+  exceptions: string[];
+}
+
 export interface AccessLogEntry {
   id: string;
   dataHora: string;

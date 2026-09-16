@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ClipboardCheck, Droplets, Gauge, User, LogOut, Shield } from 'lucide-react';
+import { ClipboardCheck, Droplets, Gauge, User, LogOut, Shield, Lock, Info } from 'lucide-react';
 import { ScreenId, UserProfile } from '../types';
 import { AdminLoginModal } from './AdminLoginModal';
 
@@ -44,8 +44,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <User className="w-4 h-4 text-[#8b0000]" />
             </div>
             <div className="min-w-0">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                {currentUser.cargo || 'Operador Ativo'}
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] font-bold text-[#8b0000] uppercase tracking-wider">
+                  {currentUser.cargo || 'Operador Ativo'}
+                </span>
+                <span
+                  title="Função definida no cadastro corporativo. Caso esteja incorreta, solicite a alteração ao Administrador."
+                  className="text-slate-400 hover:text-slate-600 cursor-help"
+                >
+                  <Lock className="w-2.5 h-2.5" />
+                </span>
               </div>
               <div className="text-xs font-bold text-slate-800 truncate">
                 {currentUser.nome}

@@ -9,6 +9,66 @@ const TXT_LOG_PATH = path.join(DATA_DIR, 'rastreio_acessos.txt');
 const JSON_LOG_PATH = path.join(DATA_DIR, 'logs.json');
 const USERS_PATH = path.join(DATA_DIR, 'users.json');
 const ADMINS_PATH = path.join(DATA_DIR, 'admins.json');
+const EMAIL_EXCEPTIONS_PATH = path.join(DATA_DIR, 'email_exceptions.json');
+
+// Extensões de e-mail corporativo aceitas por padrão
+export const DEFAULT_ALLOWED_DOMAINS = ['@rttshop.com.br', '@rematiptop.com.br'];
+
+function loadEmailExceptions(): string[] {
+  try {
+    if (fs.existsSync(EMAIL_EXCEPTIONS_PATH)) {
+      const content = fs.readFileSync(EMAIL_EXCEPTIONS_PATH, 'utf-8');
+      const list = JSON.parse(content);
+      if (Array.isArray(list)) {
+        return Array.from(new Set(list.map((e: string) => String(e).trim().toLowerCase()).filter(Boolean)));
+      }
+    }
+  } catch (err) {
+    console.warn('Erro ao ler email_exceptions.json:', err);
+  }
+  return [];
+}
+
+function saveEmailExceptions(list: string[]): void {
+  try {
+    const unique = Array.from(new Set(list.map((e) => String(e).trim().toLowerCase()).filter(Boolean)));
+    fs.writeFileSync(EMAIL_EXCEPTIONS_PATH, JSON.stringify(unique, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('Erro ao salvar email_exceptions.json:', err);
+  }
+}
+
+export function isEmailAllowed(email: string): { allowed: boolean; reason?: string } {
+  const cleanEmail = (email || '').trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes('@')) {
+    return { allowed: false, reason: 'Informe um endereço de e-mail corporativo válido.' };
+  }
+
+  // 1. Checa os domínios corporativos padrão (@rttshop.com.br e @rematiptop.com.br)
+  for (const domain of DEFAULT_ALLOWED_DOMAINS) {
+    if (cleanEmail.endsWith(domain)) {
+      return { allowed: true };
+    }
+  }
+
+  // 2. Checa as exceções autorizadas pelo administrador
+  const exceptions = loadEmailExceptions();
+  for (const item of exceptions) {
+    if (item.startsWith('@')) {
+      if (cleanEmail.endsWith(item)) {
+        return { allowed: true };
+      }
+    } else if (cleanEmail === item) {
+      return { allowed: true };
+    }
+  }
+
+  return {
+    allowed: false,
+    reason:
+      'Acesso restrito: O aplicativo aceita apenas e-mails corporativos @rttshop.com.br ou @rematiptop.com.br. Caso precise de acesso com outra extensão, solicite autorização ao Administrador.',
+  };
+}
 
 // Garante que o diretório de dados existe
 if (!fs.existsSync(DATA_DIR)) {
@@ -167,19 +227,39 @@ async function startServer() {
   const app = express();
   app.use(express.json());
 
-  // ROTA: Verificar status de cadastro de um e-mail (se já possui senha)
+  // ROTA: Regras de e-mail corporativo e exceções
+  app.get('/api/email-rules', (_req, res) => {
+    res.json({
+      defaultDomains: DEFAULT_ALLOWED_DOMAINS,
+      exceptions: loadEmailExceptions(),
+    });
+  });
+
+  // ROTA: Verificar status de cadastro de um e-mail (se já possui senha e função definida)
   app.get('/api/user/check', (req, res) => {
     const email = (req.query.email as string || '').trim().toLowerCase();
     if (!email) {
       res.status(400).json({ error: 'E-mail obrigatório' });
       return;
     }
+
+    const emailCheck = isEmailAllowed(email);
     const users = loadUsers();
     const user = users[email];
+
     if (user) {
-      res.json({ exists: true, nome: user.nome, cargo: user.cargo });
+      res.json({
+        exists: true,
+        allowed: true,
+        nome: user.nome,
+        cargo: user.cargo,
+      });
     } else {
-      res.json({ exists: false });
+      res.json({
+        exists: false,
+        allowed: emailCheck.allowed,
+        reason: emailCheck.reason,
+      });
     }
   });
 
@@ -197,6 +277,13 @@ async function startServer() {
         return;
       }
 
+      // Validação estrita de extensão de e-mail ou exceção autorizada
+      const emailCheck = isEmailAllowed(cleanEmail);
+      if (!emailCheck.allowed) {
+        res.status(403).json({ success: false, message: emailCheck.reason });
+        return;
+      }
+
       if (!cleanPass || cleanPass.length < 4) {
         res.status(400).json({ success: false, message: 'A senha deve conter no mínimo 4 dígitos/caracteres.' });
         return;
@@ -211,9 +298,9 @@ async function startServer() {
           res.status(401).json({ success: false, message: 'Senha incorreta para este e-mail corporativo.' });
           return;
         }
-        // Atualiza nome/cargo e data de último login
+        // Atualiza apenas nome e último login.
+        // A FUNÇÃO (CARGO) É TRAVADA A PARTIR DO CADASTRO: apenas o administrador pode alterar!
         existing.nome = cleanNome || existing.nome;
-        existing.cargo = cleanCargo || existing.cargo;
         existing.lastLoginAt = new Date().toISOString();
         users[cleanEmail] = existing;
         saveUsers(users);
@@ -224,7 +311,7 @@ async function startServer() {
           user: { email: cleanEmail, nome: existing.nome, cargo: existing.cargo },
         });
       } else {
-        // Novo usuário -> cadastra senha e dados
+        // Novo usuário -> cadastra dados e fixa a função inicial
         if (!cleanNome) {
           res.status(400).json({ success: false, message: 'Informe o nome do técnico para o primeiro acesso.' });
           return;
@@ -497,6 +584,204 @@ async function startServer() {
     res.json({
       success: true,
       message: `Senha do usuário ${cleanTarget} redefinida com sucesso para "${newPassword || 'rtt2026'}".`,
+    });
+  });
+
+  // ROTA: Alterar Função (Cargo) do Operador (Exclusivo Admin)
+  app.post('/api/admin/update-operator-cargo', (req, res) => {
+    const { adminEmail, adminPassword, targetEmail, newCargo } = req.body || {};
+    if (!isAuthorizedAdmin(adminEmail, adminPassword)) {
+      res.status(401).json({ success: false, message: 'Não autorizado.' });
+      return;
+    }
+    const cleanTarget = (targetEmail || '').trim().toLowerCase();
+    const cleanCargo = (newCargo || '').trim();
+
+    if (!cleanCargo) {
+      res.status(400).json({ success: false, message: 'Selecione ou informe a nova função/cargo.' });
+      return;
+    }
+
+    const users = loadUsers();
+    if (!users[cleanTarget]) {
+      res.status(404).json({ success: false, message: 'Operador não encontrado no sistema.' });
+      return;
+    }
+
+    const oldCargo = users[cleanTarget].cargo;
+    users[cleanTarget].cargo = cleanCargo;
+    saveUsers(users);
+
+    // Registra no rastreio de auditoria
+    const entry: ServerAccessLog = {
+      id: `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      dataHora: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+      nome: adminEmail,
+      email: adminEmail,
+      cargo: 'Administrador',
+      acao: 'ALTERAÇÃO DE FUNÇÃO DE OPERADOR',
+      detalhes: `Função de ${cleanTarget} (${users[cleanTarget].nome}) alterada de "${oldCargo}" para "${cleanCargo}"`,
+    };
+    appendToTxtFile(entry);
+
+    res.json({
+      success: true,
+      message: `Função de ${users[cleanTarget].nome} atualizada para "${cleanCargo}" com sucesso.`,
+      user: {
+        email: cleanTarget,
+        nome: users[cleanTarget].nome,
+        cargo: cleanCargo,
+      },
+    });
+  });
+
+  // ROTA: Cadastrar Novo Operador Diretamente pelo Admin
+  app.post('/api/admin/create-operator', (req, res) => {
+    const { adminEmail, adminPassword, email, nome, cargo, password } = req.body || {};
+    if (!isAuthorizedAdmin(adminEmail, adminPassword)) {
+      res.status(401).json({ success: false, message: 'Não autorizado.' });
+      return;
+    }
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanNome = (nome || '').trim();
+    const cleanCargo = (cargo || 'Controle de Qualidade').trim();
+    const cleanPass = (password || 'rema2026').trim();
+
+    if (!cleanEmail || !cleanNome) {
+      res.status(400).json({ success: false, message: 'Preencha o e-mail e o nome completo do operador.' });
+      return;
+    }
+
+    const check = isEmailAllowed(cleanEmail);
+    if (!check.allowed) {
+      res.status(400).json({ success: false, message: check.reason });
+      return;
+    }
+
+    const users = loadUsers();
+    if (users[cleanEmail]) {
+      res.status(400).json({ success: false, message: 'Este operador já está cadastrado no sistema.' });
+      return;
+    }
+
+    const newUser: StoredUser = {
+      email: cleanEmail,
+      nome: cleanNome,
+      cargo: cleanCargo,
+      passwordHash: cleanPass,
+      createdAt: new Date().toISOString(),
+      lastLoginAt: undefined,
+    };
+    users[cleanEmail] = newUser;
+    saveUsers(users);
+
+    const entry: ServerAccessLog = {
+      id: `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      dataHora: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+      nome: adminEmail,
+      email: adminEmail,
+      cargo: 'Administrador',
+      acao: 'CADASTRO DE OPERADOR PELO ADMIN',
+      detalhes: `Novo operador pré-cadastrado: ${cleanNome} <${cleanEmail}> com a função "${cleanCargo}"`,
+    };
+    appendToTxtFile(entry);
+
+    res.json({
+      success: true,
+      message: `Operador ${cleanNome} cadastrado com sucesso com a função "${cleanCargo}".`,
+      user: { email: cleanEmail, nome: cleanNome, cargo: cleanCargo },
+    });
+  });
+
+  // ROTA: Gerenciar Exceções de E-mail (Admin)
+  app.post('/api/admin/email-exceptions/list', (req, res) => {
+    const { email, password } = req.body || {};
+    if (!isAuthorizedAdmin(email, password)) {
+      res.status(401).json({ success: false, message: 'Não autorizado.' });
+      return;
+    }
+    res.json({
+      success: true,
+      defaultDomains: DEFAULT_ALLOWED_DOMAINS,
+      exceptions: loadEmailExceptions(),
+    });
+  });
+
+  app.post('/api/admin/email-exceptions/add', (req, res) => {
+    const { adminEmail, adminPassword, exception } = req.body || {};
+    if (!isAuthorizedAdmin(adminEmail, adminPassword)) {
+      res.status(401).json({ success: false, message: 'Não autorizado.' });
+      return;
+    }
+    const clean = (exception || '').trim().toLowerCase();
+    if (!clean || (!clean.startsWith('@') && !clean.includes('@'))) {
+      res.status(400).json({
+        success: false,
+        message: 'Informe um e-mail completo (ex: nome@empresa.com.br) ou uma extensão de domínio iniciando com @ (ex: @parceiro.com.br).',
+      });
+      return;
+    }
+
+    if (DEFAULT_ALLOWED_DOMAINS.includes(clean)) {
+      res.status(400).json({ success: false, message: 'Este domínio já é aceito por padrão no aplicativo.' });
+      return;
+    }
+
+    const current = loadEmailExceptions();
+    if (current.includes(clean)) {
+      res.status(400).json({ success: false, message: 'Esta exceção já está na lista de autorizações.' });
+      return;
+    }
+
+    current.push(clean);
+    saveEmailExceptions(current);
+
+    const entry: ServerAccessLog = {
+      id: `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      dataHora: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+      nome: adminEmail,
+      email: adminEmail,
+      cargo: 'Administrador',
+      acao: 'AUTORIZAÇÃO DE EXCEÇÃO DE E-MAIL',
+      detalhes: `Exceção liberada pelo admin: ${clean}`,
+    };
+    appendToTxtFile(entry);
+
+    res.json({
+      success: true,
+      message: `Exceção "${clean}" autorizada com sucesso!`,
+      defaultDomains: DEFAULT_ALLOWED_DOMAINS,
+      exceptions: current,
+    });
+  });
+
+  app.post('/api/admin/email-exceptions/remove', (req, res) => {
+    const { adminEmail, adminPassword, exception } = req.body || {};
+    if (!isAuthorizedAdmin(adminEmail, adminPassword)) {
+      res.status(401).json({ success: false, message: 'Não autorizado.' });
+      return;
+    }
+    const clean = (exception || '').trim().toLowerCase();
+    const current = loadEmailExceptions();
+    const filtered = current.filter((item) => item !== clean);
+    saveEmailExceptions(filtered);
+
+    const entry: ServerAccessLog = {
+      id: `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      dataHora: new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+      nome: adminEmail,
+      email: adminEmail,
+      cargo: 'Administrador',
+      acao: 'REMOÇÃO DE EXCEÇÃO DE E-MAIL',
+      detalhes: `Exceção removida pelo admin: ${clean}`,
+    };
+    appendToTxtFile(entry);
+
+    res.json({
+      success: true,
+      message: `Exceção "${clean}" removida com sucesso.`,
+      defaultDomains: DEFAULT_ALLOWED_DOMAINS,
+      exceptions: filtered,
     });
   });
 

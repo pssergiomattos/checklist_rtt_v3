@@ -32,6 +32,26 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Sincroniza a função do operador caso o administrador tenha alterado no servidor
+  useEffect(() => {
+    if (!currentUser?.email) return;
+    let isMounted = true;
+    fetch(`/api/user/check?email=${encodeURIComponent(currentUser.email)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!isMounted || !data?.exists) return;
+        if (data.cargo && data.cargo !== currentUser.cargo) {
+          const updated = { ...currentUser, cargo: data.cargo, nome: data.nome || currentUser.nome };
+          setCurrentUser(updated);
+          setActiveUser(updated);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser?.email, currentScreen]);
+
   const navigateTo = (screen: ScreenId) => {
     setCurrentScreen(screen);
     window.history.pushState({ screen }, '');

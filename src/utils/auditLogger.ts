@@ -166,6 +166,148 @@ export async function removeAdminEmail(
 }
 
 /**
+ * Busca regras oficiais de e-mails corporativos e exceções autorizadas
+ */
+export async function fetchEmailRules(): Promise<{ defaultDomains: string[]; exceptions: string[] }> {
+  try {
+    const res = await fetch('/api/email-rules');
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        defaultDomains: data.defaultDomains || ['@rttshop.com.br', '@rematiptop.com.br'],
+        exceptions: data.exceptions || [],
+      };
+    }
+  } catch (e) {
+    console.warn('Erro ao carregar regras de e-mail:', e);
+  }
+  return {
+    defaultDomains: ['@rttshop.com.br', '@rematiptop.com.br'],
+    exceptions: [],
+  };
+}
+
+/**
+ * Adiciona uma exceção de e-mail (admin)
+ */
+export async function addEmailException(
+  adminEmail: string,
+  adminPassword: string,
+  exception: string
+): Promise<{ success: boolean; message: string; exceptions?: string[]; defaultDomains?: string[] }> {
+  try {
+    const res = await fetch('/api/admin/email-exceptions/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adminEmail, adminPassword, exception }),
+    });
+    const data = await res.json();
+    return {
+      success: !!data.success,
+      message: data.message || '',
+      exceptions: data.exceptions,
+      defaultDomains: data.defaultDomains,
+    };
+  } catch {
+    return { success: false, message: 'Erro de conexão com o servidor.' };
+  }
+}
+
+/**
+ * Remove uma exceção de e-mail (admin)
+ */
+export async function removeEmailException(
+  adminEmail: string,
+  adminPassword: string,
+  exception: string
+): Promise<{ success: boolean; message: string; exceptions?: string[]; defaultDomains?: string[] }> {
+  try {
+    const res = await fetch('/api/admin/email-exceptions/remove', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adminEmail, adminPassword, exception }),
+    });
+    const data = await res.json();
+    return {
+      success: !!data.success,
+      message: data.message || '',
+      exceptions: data.exceptions,
+      defaultDomains: data.defaultDomains,
+    };
+  } catch {
+    return { success: false, message: 'Erro de conexão com o servidor.' };
+  }
+}
+
+/**
+ * Atualiza a função / cargo de um operador (Exclusivo Admin)
+ */
+export async function updateOperatorCargo(
+  adminEmail: string,
+  adminPassword: string,
+  targetEmail: string,
+  newCargo: string
+): Promise<{ success: boolean; message: string; user?: any }> {
+  try {
+    const res = await fetch('/api/admin/update-operator-cargo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adminEmail, adminPassword, targetEmail, newCargo }),
+    });
+    const data = await res.json();
+    return { success: !!data.success, message: data.message || '', user: data.user };
+  } catch {
+    return { success: false, message: 'Erro de conexão ao atualizar função.' };
+  }
+}
+
+/**
+ * Cadastra um novo operador diretamente pelo Admin
+ */
+export async function createOperatorByAdmin(
+  adminEmail: string,
+  adminPassword: string,
+  userData: { email: string; nome: string; cargo: string; password?: string }
+): Promise<{ success: boolean; message: string; user?: any }> {
+  try {
+    const res = await fetch('/api/admin/create-operator', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        adminEmail,
+        adminPassword,
+        email: userData.email,
+        nome: userData.nome,
+        cargo: userData.cargo,
+        password: userData.password,
+      }),
+    });
+    const data = await res.json();
+    return { success: !!data.success, message: data.message || '', user: data.user };
+  } catch {
+    return { success: false, message: 'Erro de conexão ao cadastrar operador.' };
+  }
+}
+
+/**
+ * Verifica cadastro de um e-mail no servidor
+ */
+export async function checkUserRegistration(
+  email: string
+): Promise<{ exists: boolean; allowed: boolean; nome?: string; cargo?: string; reason?: string }> {
+  try {
+    const res = await fetch(`/api/user/check?email=${encodeURIComponent(email)}`);
+    if (res.ok) {
+      return await res.json();
+    }
+    const errData = await res.json().catch(() => ({}));
+    return { exists: false, allowed: false, reason: errData.reason || errData.message };
+  } catch {
+    return { exists: false, allowed: true };
+  }
+}
+
+/**
  * Busca histórico completo de acessos do servidor
  */
 export async function fetchServerLogs(
