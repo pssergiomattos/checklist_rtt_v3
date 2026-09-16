@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>RTT Check - Controle de Qualidade</title>
+    <meta name="description" content="Aplicativo de controle de qualidade para inspeções industriais, checklists fotográficos, ponto de orvalho e medição de carcaça." />
+    <meta property="og:title" content="RTT Check - Controle de Qualidade" />
+    <meta property="og:description" content="Aplicativo de controle de qualidade para inspeções industriais, checklists fotográficos, ponto de orvalho e medição de carcaça." />
+    <meta property="og:type" content="website" />
+    <meta name="theme-color" content="#8b0000" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="RTT Check" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" href="/logo-192.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/logo-192.png" />
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('RTT Check PWA registrado!', reg.scope))
+            .catch(err => console.error('Erro ao registrar Service Worker:', err));
+        });
+      }
+    </script>
+  </head>
+  <body class="bg-[#f0f2f5] text-slate-900 antialiased min-h-screen">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

@@ -1,0 +1,6 @@
+{
+  "name": "RTT Check - Controle de Qualidade",
+  "description": "Aplicativo de controle de qualidade para inspeções industriais, checklists fotográficos, ponto de orvalho e medição de carcaça.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

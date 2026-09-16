@@ -1,0 +1,21 @@
+{
+  "name": "RTT Check",
+  "short_name": "RTT Check",
+  "description": "Controle de Qualidade",
+  "start_url": "./?v=2",
+  "display": "standalone",
+  "background_color": "#f0f2f5",
+  "theme_color": "#8b0000",
+  "icons": [
+    {
+      "src": "/logo-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icone-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
