@@ -62,7 +62,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
       {/* Rodapé institucional */}
       <div className="mt-6 text-center text-xs text-slate-400 font-medium leading-relaxed border-t border-slate-100 pt-5 w-full">
         <p className="text-slate-600 font-semibold">Desenvolvido por Paulo Matos</p>
-        <p>Téc. Controle de Qualidade</p>
+        <p>Técnico de Controle de Qualidade</p>
       </div>
     </div>
   );

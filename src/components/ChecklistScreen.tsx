@@ -701,7 +701,7 @@ export const ChecklistScreen: React.FC<ChecklistScreenProps> = ({ onNavigate }) 
       {/* Rodapé institucional */}
       <div className="mt-5 text-center text-[11px] text-slate-400 font-medium">
         Desenvolvido por Paulo Matos<br />
-        Téc. Controle de Qualidade
+        Técnico de Controle de Qualidade
       </div>
 
       {/* Modal de foto ampliada */}

@@ -58,7 +58,7 @@ export const ShellWearScreen: React.FC<ShellWearScreenProps> = ({ onNavigate }) 
     const hora = String(now.getHours()).padStart(2, '0');
     const minuto = String(now.getMinutes()).padStart(2, '0');
 
-    let text = `*MEDIÇÃO DE CARCAÇA DE TAMBOR (ULTRASSOM) - REMA TIP TOP*\n`;
+    let text = `*MEDIÇÃO DE CARCAÇA DE TAMBOR - REMA TIP TOP*\n`;
     text += `*Data:* ${dia}/${mes}/${ano} às ${hora}:${minuto}\n\n`;
     text += `*Espessura Nominal:* ${result.nominal.toFixed(1)} mm\n`;
     text += `*Menor Medida Encontrada:* ${result.menorMedida.toFixed(1)} mm\n`;
@@ -191,9 +191,6 @@ export const ShellWearScreen: React.FC<ShellWearScreenProps> = ({ onNavigate }) 
                 <div className="text-[10px] font-bold text-slate-400">
                   {new Date().toLocaleDateString('pt-BR')}
                 </div>
-                <div className="text-[9px] font-semibold text-slate-500">
-                  Ultrassom
-                </div>
               </div>
             </div>
 
@@ -266,7 +263,7 @@ export const ShellWearScreen: React.FC<ShellWearScreenProps> = ({ onNavigate }) 
 
             {/* Rodapé da imagem capturada */}
             <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium px-1">
-              <span>Paulo Matos - CQ</span>
+              <span>Controle de Qualidade</span>
               <span>REMA TIP TOP Brasil</span>
             </div>
           </div>
@@ -283,12 +280,12 @@ export const ShellWearScreen: React.FC<ShellWearScreenProps> = ({ onNavigate }) 
               {isSharing ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Gerando Print e Compartilhando...</span>
+                  <span>Preparando Imagem e Legenda...</span>
                 </>
               ) : (
                 <>
                   <Share2 className="w-5 h-5" />
-                  <span>Compartilhar Print no WhatsApp</span>
+                  <span>Compartilhar Imagem e Legenda</span>
                 </>
               )}
             </button>
@@ -339,7 +336,7 @@ export const ShellWearScreen: React.FC<ShellWearScreenProps> = ({ onNavigate }) 
 
       <div className="mt-5 text-center text-[11px] text-slate-400 font-medium">
         Desenvolvido por Paulo Matos<br />
-        Téc. Controle de Qualidade
+        Técnico de Controle de Qualidade
       </div>
     </div>
   );
