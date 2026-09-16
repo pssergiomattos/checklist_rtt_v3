@@ -1,4 +1,22 @@
-export type ScreenId = 'home' | 'checklist' | 'orvalho' | 'carcaca';
+export type ScreenId = 'home' | 'checklist' | 'orvalho' | 'carcaca' | 'admin-logs';
+
+export interface AccessLogEntry {
+  id: string;
+  dataHora: string;
+  nome: string;
+  email: string;
+  cargo: string;
+  acao: string;
+  detalhes?: string;
+  dispositivo?: string;
+  ip?: string;
+}
+
+export interface UserProfile {
+  nome: string;
+  email?: string;
+  cargo?: string;
+}
 
 export type ServiceId =
   | 'revestimento'

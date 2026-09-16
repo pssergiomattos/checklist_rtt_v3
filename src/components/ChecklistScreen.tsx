@@ -29,11 +29,14 @@ import {
   sharePhotosWhatsApp,
 } from '../utils/whatsappShare';
 import { PhotoModal } from './PhotoModal';
+import { UserProfile } from '../types';
+import { logAccessEvent } from '../utils/auditLogger';
 
 const STORAGE_KEY = 'rttCheckEstado_v2';
 
 interface ChecklistScreenProps {
   onNavigate: (screen: ScreenId) => void;
+  currentUser?: UserProfile | null;
 }
 
 const getInitialFormData = (serviceDef?: ServiceDef): ServiceFormData => {
@@ -55,7 +58,7 @@ const getInitialFormData = (serviceDef?: ServiceDef): ServiceFormData => {
   };
 };
 
-export const ChecklistScreen: React.FC<ChecklistScreenProps> = ({ onNavigate }) => {
+export const ChecklistScreen: React.FC<ChecklistScreenProps> = ({ onNavigate, currentUser }) => {
   const [serviceId, setServiceId] = useState<ServiceId | ''>('revestimento');
   const [formData, setFormData] = useState<ServiceFormData>(() =>
     getInitialFormData(SERVICES['revestimento'])
@@ -72,6 +75,13 @@ export const ChecklistScreen: React.FC<ChecklistScreenProps> = ({ onNavigate }) 
   } | null>(null);
 
   const activeService = serviceId ? SERVICES[serviceId] : null;
+
+  // Preencher nome do técnico automaticamente a partir do operador logado se estiver vazio
+  useEffect(() => {
+    if (currentUser?.nome && !formData.tecnico) {
+      setFormData((prev) => ({ ...prev, tecnico: currentUser.nome }));
+    }
+  }, [currentUser?.nome, formData.tecnico]);
 
   // Carregar dados salvos no localStorage
   useEffect(() => {
@@ -235,6 +245,13 @@ export const ChecklistScreen: React.FC<ChecklistScreenProps> = ({ onNavigate }) 
   const handleSendText = () => {
     if (!activeService) return;
     const report = generateTextReport(activeService, formData);
+    if (currentUser) {
+      logAccessEvent(
+        'Checklist Compartilhado',
+        currentUser,
+        `Serviço: ${activeService.nome} | OM: ${formData.om || 'S/N'}`
+      );
+    }
     openWhatsAppText(report);
   };
 

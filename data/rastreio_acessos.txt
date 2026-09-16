@@ -1,0 +1,10 @@
+================================================================================
+RTT CHECK - RELATÓRIO DE AUDITORIA E RASTREIO DE ACESSOS ONLINE
+REMA TIP TOP Brasil - Controle de Qualidade
+Arquivo inicializado em: 16/09/2026, 16:48:11
+================================================================================
+[16/09/2026, 16:48:19] LOGIN NO APP | Técnico: Paulo Matos <paulo.matos@rttshop.com.br> | Função: Controle de Qualidade | Disp: N/A | Obs: Teste de inicialização do rastreio
+[16/09/2026, 16:50:14] LOGIN NO APP | Técnico: Paulo Matos <paulo.matos@rttshop.com.br> | Função: Controle de Qualidade | Disp: Windows (PC) | Obs: Início de sessão
+[16/09/2026, 16:59:31] LOGIN NO APP | Técnico: Paulo Matos <paulo.matos@rttshop.com.br> | Função: Controle de Qualidade | Disp: Windows (PC) | Obs: Início de sessão
+[16/09/2026, 17:01:34] LOGIN NO APP | Técnico: Mairon Campos <mairon.campos@rttshop.com.br> | Função: Gerência | Disp: Windows (PC) | Obs: Início de sessão
+[16/09/2026, 17:04:32] NOVO CADASTRO DE SENHA | Técnico: Carlos Silva <carlos.silva@rttshop.com.br> | Função: Controle de Qualidade | Disp: curl/7.88.1 | Obs: Operador realizou o primeiro acesso e definiu sua senha pessoal

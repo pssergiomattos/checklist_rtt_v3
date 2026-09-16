@@ -1,0 +1,56 @@
+[
+  {
+    "id": "1789589072877-g3ylv",
+    "dataHora": "16/09/2026, 17:04:32",
+    "nome": "Carlos Silva",
+    "email": "carlos.silva@rttshop.com.br",
+    "cargo": "Controle de Qualidade",
+    "acao": "NOVO CADASTRO DE SENHA",
+    "detalhes": "Operador realizou o primeiro acesso e definiu sua senha pessoal",
+    "dispositivo": "curl/7.88.1",
+    "ip": "127.0.0.1"
+  },
+  {
+    "id": "1789588894491-kwn5s",
+    "dataHora": "16/09/2026, 17:01:34",
+    "nome": "Mairon Campos",
+    "email": "mairon.campos@rttshop.com.br",
+    "cargo": "Gerência",
+    "acao": "Login no App",
+    "detalhes": "Início de sessão",
+    "dispositivo": "Windows (PC)",
+    "ip": "201.65.118.252, 169.254.169.126"
+  },
+  {
+    "id": "1789588771905-hooiv",
+    "dataHora": "16/09/2026, 16:59:31",
+    "nome": "Paulo Matos",
+    "email": "paulo.matos@rttshop.com.br",
+    "cargo": "Controle de Qualidade",
+    "acao": "Login no App",
+    "detalhes": "Início de sessão",
+    "dispositivo": "Windows (PC)",
+    "ip": "201.65.118.252, 169.254.169.126"
+  },
+  {
+    "id": "1789588214467-uodms",
+    "dataHora": "16/09/2026, 16:50:14",
+    "nome": "Paulo Matos",
+    "email": "paulo.matos@rttshop.com.br",
+    "cargo": "Controle de Qualidade",
+    "acao": "Login no App",
+    "detalhes": "Início de sessão",
+    "dispositivo": "Windows (PC)",
+    "ip": "201.65.118.252, 169.254.169.126"
+  },
+  {
+    "id": "1789588099777-8zlhu",
+    "dataHora": "16/09/2026, 16:48:19",
+    "nome": "Paulo Matos",
+    "email": "paulo.matos@rttshop.com.br",
+    "cargo": "Controle de Qualidade",
+    "acao": "Login no App",
+    "detalhes": "Teste de inicialização do rastreio",
+    "ip": "127.0.0.1"
+  }
+]

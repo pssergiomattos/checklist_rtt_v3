@@ -1,14 +1,16 @@
 import React, { useState, useRef } from 'react';
 import { Droplets, Calculator, RotateCcw, ArrowLeft, CheckCircle2, AlertTriangle, Share2, Loader2, Copy, Check } from 'lucide-react';
 import { calculateDewPoint } from '../utils/dewPoint';
-import { DewPointResult, ScreenId } from '../types';
+import { DewPointResult, ScreenId, UserProfile } from '../types';
 import { captureAndShareCard } from '../utils/cardCaptureShare';
+import { logAccessEvent } from '../utils/auditLogger';
 
 interface DewPointScreenProps {
   onNavigate: (screen: ScreenId) => void;
+  currentUser?: UserProfile | null;
 }
 
-export const DewPointScreen: React.FC<DewPointScreenProps> = ({ onNavigate }) => {
+export const DewPointScreen: React.FC<DewPointScreenProps> = ({ onNavigate, currentUser }) => {
   const [temp, setTemp] = useState<string>('');
   const [umidade, setUmidade] = useState<string>('');
   const [tempSuperficie, setTempSuperficie] = useState<string>('');
@@ -37,6 +39,13 @@ export const DewPointScreen: React.FC<DewPointScreenProps> = ({ onNavigate }) =>
     setErrorMsg('');
     const calculated = calculateDewPoint(t, u, ts);
     setResult(calculated);
+    if (currentUser) {
+      logAccessEvent(
+        'Cálculo Ponto de Orvalho',
+        currentUser,
+        `T.Ar: ${t}ºC | UR: ${u}% | T.Sup: ${ts}ºC -> ${calculated.apto ? 'APTO' : 'NÃO APTO'}`
+      );
+    }
   };
 
   const handleReset = () => {
@@ -57,7 +66,11 @@ export const DewPointScreen: React.FC<DewPointScreenProps> = ({ onNavigate }) =>
     const minuto = String(now.getMinutes()).padStart(2, '0');
 
     let text = `*ANÁLISE DE PONTO DE ORVALHO - REMA TIP TOP*\n`;
-    text += `*Data:* ${dia}/${mes}/${ano} às ${hora}:${minuto}\n\n`;
+    text += `*Data:* ${dia}/${mes}/${ano} às ${hora}:${minuto}\n`;
+    if (currentUser?.nome) {
+      text += `*Técnico:* ${currentUser.nome}\n`;
+    }
+    text += `\n`;
     text += `*Temp. Ambiente:* ${temp} °C\n`;
     text += `*Umidade Relativa:* ${umidade} %\n`;
     text += `*Temp. Superfície:* ${result.tempSuperficie} °C\n\n`;
@@ -287,7 +300,7 @@ export const DewPointScreen: React.FC<DewPointScreenProps> = ({ onNavigate }) =>
 
             {/* Rodapé da imagem capturada */}
             <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium px-1">
-              <span>Controle de Qualidade</span>
+              <span>{currentUser?.nome || 'Controle de Qualidade'}</span>
               <span>REMA TIP TOP Brasil</span>
             </div>
           </div>

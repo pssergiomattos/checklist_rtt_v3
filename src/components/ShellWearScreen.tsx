@@ -1,14 +1,16 @@
 import React, { useState, useRef } from 'react';
 import { Gauge, RotateCcw, ArrowLeft, CheckCircle2, AlertTriangle, Share2, Loader2, Copy, Check } from 'lucide-react';
 import { calculateShellWear } from '../utils/shellWear';
-import { ScreenId, ShellWearResult } from '../types';
+import { ScreenId, ShellWearResult, UserProfile } from '../types';
 import { captureAndShareCard } from '../utils/cardCaptureShare';
+import { logAccessEvent } from '../utils/auditLogger';
 
 interface ShellWearScreenProps {
   onNavigate: (screen: ScreenId) => void;
+  currentUser?: UserProfile | null;
 }
 
-export const ShellWearScreen: React.FC<ShellWearScreenProps> = ({ onNavigate }) => {
+export const ShellWearScreen: React.FC<ShellWearScreenProps> = ({ onNavigate, currentUser }) => {
   const [nominal, setNominal] = useState<string>('');
   const [menorMedida, setMenorMedida] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string>('');
@@ -40,6 +42,13 @@ export const ShellWearScreen: React.FC<ShellWearScreenProps> = ({ onNavigate }) 
     setErrorMsg('');
     const calculated = calculateShellWear(nom, men);
     setResult(calculated);
+    if (currentUser) {
+      logAccessEvent(
+        'Medição de Carcaça',
+        currentUser,
+        `Nominal: ${nom}mm | Medido: ${men}mm | Desgaste: ${calculated.porcentagemDesgaste.toFixed(1)}% -> ${calculated.apto ? 'APTO' : 'NÃO APTO'}`
+      );
+    }
   };
 
   const handleReset = () => {
@@ -59,7 +68,11 @@ export const ShellWearScreen: React.FC<ShellWearScreenProps> = ({ onNavigate }) 
     const minuto = String(now.getMinutes()).padStart(2, '0');
 
     let text = `*MEDIÇÃO DE CARCAÇA DE TAMBOR - REMA TIP TOP*\n`;
-    text += `*Data:* ${dia}/${mes}/${ano} às ${hora}:${minuto}\n\n`;
+    text += `*Data:* ${dia}/${mes}/${ano} às ${hora}:${minuto}\n`;
+    if (currentUser?.nome) {
+      text += `*Técnico:* ${currentUser.nome}\n`;
+    }
+    text += `\n`;
     text += `*Espessura Nominal:* ${result.nominal.toFixed(1)} mm\n`;
     text += `*Menor Medida Encontrada:* ${result.menorMedida.toFixed(1)} mm\n`;
     text += `*Diferença Total:* ${result.diferenca.toFixed(2)} mm\n`;
@@ -263,7 +276,7 @@ export const ShellWearScreen: React.FC<ShellWearScreenProps> = ({ onNavigate }) 
 
             {/* Rodapé da imagem capturada */}
             <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-medium px-1">
-              <span>Controle de Qualidade</span>
+              <span>{currentUser?.nome || 'Controle de Qualidade'}</span>
               <span>REMA TIP TOP Brasil</span>
             </div>
           </div>
