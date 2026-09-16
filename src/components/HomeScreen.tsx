@@ -12,7 +12,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => {
       {/* Logo REMA TIP TOP Centralizada */}
       <div className="w-44 h-28 flex items-center justify-center mb-3">
         <img
-          src="/logo-192.png"
+          src="./logo-192.png"
           alt="REMA TIP TOP"
           className="max-w-full max-h-full object-contain select-none"
         />

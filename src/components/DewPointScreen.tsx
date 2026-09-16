@@ -194,7 +194,7 @@ export const DewPointScreen: React.FC<DewPointScreenProps> = ({ onNavigate }) =>
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-3 px-1">
               <div className="flex items-center gap-2">
                 <img
-                  src="/logo-192.png"
+                  src="./logo-192.png"
                   alt="REMA TIP TOP"
                   className="w-9 h-9 object-contain"
                 />

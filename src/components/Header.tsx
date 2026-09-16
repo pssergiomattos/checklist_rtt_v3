@@ -26,7 +26,7 @@ export const Header: React.FC<HeaderProps> = ({
             aria-label="Voltar ao Início"
           >
             <img
-              src="/logo-192.png"
+              src="./logo-192.png"
               alt="REMA TIP TOP - Início"
               className="h-8 w-auto max-w-[80px] object-contain select-none"
             />
