@@ -31,6 +31,7 @@ import {
   removeEmailException,
   updateOperatorCargo,
   createOperatorByAdmin,
+  removeOperatorByAdmin,
 } from '../utils/auditLogger';
 
 interface AdminLogsScreenProps {
@@ -187,6 +188,23 @@ export const AdminLogsScreen: React.FC<AdminLogsScreenProps> = ({
       }
     } finally {
       setCreatingOp(false);
+    }
+  };
+
+  const handleRemoveOperator = async (targetEmail: string) => {
+    if (!confirm(`Tem certeza que deseja EXCLUIR o operador ${targetEmail}? Ele perderá o acesso imediatamente.`)) {
+      return;
+    }
+    try {
+      const res = await removeOperatorByAdmin(adminEmail, adminPass, targetEmail);
+      if (res.success) {
+        triggerSuccessMsg(res.message);
+        setUsersList((prev) => prev.filter((u) => u.email !== targetEmail));
+      } else {
+        triggerErrorMsg(res.message);
+      }
+    } catch {
+      triggerErrorMsg('Erro ao se comunicar com o servidor.');
     }
   };
 
@@ -585,6 +603,15 @@ export const AdminLogsScreen: React.FC<AdminLogsScreenProps> = ({
                     >
                       <KeyRound className="w-3 h-3 text-[#8b0000]" />
                       <span>Redefinir Senha</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveOperator(usr.email)}
+                      className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all border border-transparent hover:border-red-200"
+                      title="Excluir Operador"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>

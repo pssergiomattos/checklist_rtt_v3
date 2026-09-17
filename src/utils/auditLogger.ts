@@ -215,6 +215,17 @@ export async function createOperatorByAdmin(adminEmail: string, adminPassword: s
   }
 }
 
+export async function removeOperatorByAdmin(adminEmail: string, adminPassword: string, targetEmail: string) {
+  try {
+    const { deleteDoc } = await import('firebase/firestore');
+    const userRef = doc(db, 'userProfiles', targetEmail.toLowerCase());
+    await deleteDoc(userRef);
+    return { success: true, message: 'Operador excluído com sucesso.' };
+  } catch (e) {
+    return { success: false, message: 'Erro ao excluir operador.' };
+  }
+}
+
 export async function checkUserRegistration(email: string) {
   try {
     const userRef = doc(db, 'userProfiles', email.toLowerCase());

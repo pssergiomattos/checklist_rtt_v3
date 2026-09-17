@@ -163,8 +163,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           if (res.cargo) setCargo(res.cargo);
         } else {
           // NOVO USUÁRIO: apenas aqui a lista de função fica selecionável!
-          setIsExistingUser(false);
-          setIsNewRegistration(true);
+          // Exceção: O Super Admin não deve aparecer como novo usuário
+          if (clean === 'paulo.matos@rttshop.com.br') {
+            setIsExistingUser(true);
+            setIsNewRegistration(false);
+            setNome('Paulo Matos');
+            setCargo('Administrador do Sistema');
+          } else {
+            setIsExistingUser(false);
+            setIsNewRegistration(true);
+          }
         }
       } catch (err) {
         console.warn('Erro ao checar cadastro do operador:', err);
@@ -209,9 +217,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           if (res.nome) setNome(res.nome);
           if (res.cargo) setCargo(res.cargo);
         } else {
-          setIsExistingUser(false);
-          setIsNewRegistration(true);
-          if (user.cargo) setCargo(user.cargo);
+           if (clean === 'paulo.matos@rttshop.com.br') {
+            setIsExistingUser(true);
+            setIsNewRegistration(false);
+            setNome('Paulo Matos');
+            setCargo('Administrador do Sistema');
+          } else {
+            setIsExistingUser(false);
+            setIsNewRegistration(true);
+            if (user.cargo) setCargo(user.cargo);
+          }
         }
       } catch {
         setIsExistingUser(true);
@@ -285,6 +300,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         finalNome = data.nome || finalNome;
         await setDoc(userRef, { lastLoginAt: new Date().toISOString() }, { merge: true });
       } else {
+        // Checar se ele é o super admin para não criar um cargo de "Controle de Qualidade" acidentalmente
+        if (cleanEmail === 'paulo.matos@rttshop.com.br') {
+            finalCargo = 'Administrador do Sistema';
+            finalNome = 'Paulo Matos';
+        }
         await setDoc(userRef, {
           nome: finalNome,
           cargo: finalCargo,
