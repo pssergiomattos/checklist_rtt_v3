@@ -12,6 +12,7 @@ import {
   ArrowLeft,
   Loader2,
   AlertCircle,
+  Save,
 } from 'lucide-react';
 import { SERVICES } from '../data/checklistStructures';
 import {
@@ -31,6 +32,7 @@ import {
 import { PhotoModal } from './PhotoModal';
 import { UserProfile } from '../types';
 import { logAccessEvent } from '../utils/auditLogger';
+import { saveInspectionReport } from '../firebase';
 
 const STORAGE_KEY = 'rttCheckEstado_v2';
 
@@ -73,6 +75,7 @@ export const ChecklistScreen: React.FC<ChecklistScreenProps> = ({ onNavigate, cu
     type: 'success' | 'error';
     text: string;
   } | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const activeService = serviceId ? SERVICES[serviceId] : null;
 
@@ -303,6 +306,30 @@ export const ChecklistScreen: React.FC<ChecklistScreenProps> = ({ onNavigate, cu
         text: result.message,
       });
       setTimeout(() => setFeedbackMsg(null), 5000);
+    }
+  };
+
+  const handleSaveToDatabase = async () => {
+    if (!activeService) return;
+    
+    setIsSaving(true);
+    setFeedbackMsg(null);
+    try {
+      await saveInspectionReport(serviceId as ServiceId, formData);
+      setFeedbackMsg({
+        type: 'success',
+        text: 'Inspeção salva no banco de dados com sucesso!',
+      });
+      setTimeout(() => setFeedbackMsg(null), 4000);
+    } catch (error) {
+      console.error("Error saving to db:", error);
+      setFeedbackMsg({
+        type: 'error',
+        text: 'Erro ao salvar inspeção. Tente novamente.',
+      });
+      setTimeout(() => setFeedbackMsg(null), 5000);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -662,6 +689,26 @@ export const ChecklistScreen: React.FC<ChecklistScreenProps> = ({ onNavigate, cu
               Envie o texto primeiro, volte aqui e envie as fotos. Elas ficarão
               logo abaixo no WhatsApp.
             </div>
+
+            {/* Passo 3: Salvar no Banco de Dados */}
+            <button
+              id="btn-salvar-bd"
+              type="button"
+              onClick={handleSaveToDatabase}
+              disabled={isSaving || !hasFilledData}
+              className={`w-full py-3.5 px-4 mt-2 font-bold text-sm tracking-wide rounded-xl shadow-md flex items-center justify-center gap-2 transition-all duration-150 ${
+                isSaving || !hasFilledData
+                  ? 'bg-slate-300 text-slate-500 shadow-none cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-blue-950/15'
+              }`}
+            >
+              {isSaving ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Save className="w-5 h-5" />
+              )}
+              <span>{isSaving ? 'Salvando...' : '3º Passo: Salvar no Sistema'}</span>
+            </button>
 
             {/* Alternativa: Copiar relatório para a área de transferência */}
             <button

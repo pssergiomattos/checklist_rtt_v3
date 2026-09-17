@@ -1,0 +1,27 @@
+{
+  "entities": {
+    "InspectionReport": {
+      "title": "Inspection Report",
+      "description": "A report generated after completing an inspection checklist.",
+      "type": "object",
+      "properties": {
+        "serviceId": { "type": "string" },
+        "tecnico": { "type": "string" },
+        "om": { "type": "string" },
+        "identificacao": { "type": "string" },
+        "observacoes": { "type": "string" },
+        "status": { "type": "object", "description": "Status of each item" },
+        "photosCount": { "type": "number" },
+        "createdAt": { "type": "number" },
+        "userId": { "type": "string" }
+      },
+      "required": ["serviceId", "tecnico", "identificacao", "createdAt", "userId"]
+    }
+  },
+  "firestore": {
+    "inspections": {
+      "schema": { "$ref": "#/entities/InspectionReport" },
+      "description": "Collection of submitted inspection reports."
+    }
+  }
+}
