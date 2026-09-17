@@ -256,32 +256,44 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     setErrorMsg('');
 
     try {
-      // Registra ou autentica no servidor com senha padrão / corporativa
-      const authRes = await fetch('/api/user/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: cleanEmail,
-          nome: cleanNome,
-          cargo: cargo.trim() || 'Controle de Qualidade',
-          password: 'rema' + new Date().getFullYear(),
-        }),
-      });
+      const { auth, db } = await import('../firebase');
+      const { signInWithEmailAndPassword, createUserWithEmailAndPassword } = await import('firebase/auth');
+      const { doc, getDoc, setDoc } = await import('firebase/firestore');
 
-      const authData = await authRes.json();
-
-      if (!authRes.ok || !authData.success) {
-        setErrorMsg(authData.message || 'Erro ao validar acesso. Contate o administrador.');
-        setLoading(false);
-        return;
+      const pass = 'rema' + new Date().getFullYear();
+      let userRecord;
+      try {
+        const userCred = await signInWithEmailAndPassword(auth, cleanEmail, pass);
+        userRecord = userCred.user;
+      } catch (err: any) {
+        if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-login-credentials') {
+          const userCred = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
+          userRecord = userCred.user;
+        } else {
+          throw err;
+        }
       }
 
-      // Se o usuário já possuía cadastro, o servidor garante o cargo original
-      const finalUser: UserProfile = {
-        nome: authData.user?.nome || cleanNome,
-        email: authData.user?.email || cleanEmail,
-        cargo: authData.user?.cargo || cargo.trim() || 'Controle de Qualidade',
-      };
+      const userRef = doc(db, 'userProfiles', cleanEmail);
+      const userSnap = await getDoc(userRef);
+      let finalCargo = cargo.trim() || 'Controle de Qualidade';
+      let finalNome = cleanNome;
+
+      if (userSnap.exists()) {
+        const data = userSnap.data();
+        finalCargo = data.cargo || finalCargo;
+        finalNome = data.nome || finalNome;
+        await setDoc(userRef, { lastLoginAt: new Date().toISOString() }, { merge: true });
+      } else {
+        await setDoc(userRef, {
+          nome: finalNome,
+          cargo: finalCargo,
+          createdAt: new Date().toISOString(),
+          lastLoginAt: new Date().toISOString()
+        });
+      }
+
+      const finalUser: UserProfile = { nome: finalNome, email: cleanEmail, cargo: finalCargo };
 
       if (lembrar) {
         setActiveUser(finalUser);

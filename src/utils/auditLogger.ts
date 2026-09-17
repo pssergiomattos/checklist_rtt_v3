@@ -1,4 +1,7 @@
 import { AccessLogEntry, UserProfile } from '../types';
+import { db, auth } from '../firebase';
+import { collection, doc, getDoc, getDocs, setDoc, addDoc, query, orderBy, limit } from 'firebase/firestore';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 
 const LOGS_STORAGE_KEY = 'rtt_audit_logs_cache_v1';
 const ADMIN_AUTH_KEY = 'rtt_admin_session_v1';
@@ -34,9 +37,6 @@ export function saveLocalCachedLog(entry: AccessLogEntry): void {
   }
 }
 
-/**
- * Registra um evento de auditoria / rastreio no servidor e em cache local
- */
 export async function logAccessEvent(
   acao: string,
   user: UserProfile,
@@ -56,295 +56,204 @@ export async function logAccessEvent(
     dispositivo,
   };
 
-  // Salva no cache local imediatamente
   saveLocalCachedLog(entry);
 
-  // Envia para o servidor Express em background
   try {
-    await fetch('/api/logs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(entry),
-    });
+    await addDoc(collection(db, 'logs'), entry);
   } catch (err) {
-    // Se estiver sem conexão ou rota falhar, o cache local já protegeu o registro
-    console.warn('Não foi possível sincronizar o log com o servidor no momento:', err);
+    console.warn('Não foi possível sincronizar o log com o Firebase no momento:', err);
   }
 }
 
-/**
- * Verifica credenciais de Administrador
- */
-export async function verifyAdminCredentials(
-  email: string,
-  password: string
-): Promise<{ success: boolean; message?: string; isSuperAdmin?: boolean }> {
+export async function verifyAdminCredentials(email: string, password: string) {
   try {
-    const res = await fetch('/api/admin/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-
-    const data = await res.json();
-    if (res.ok && data.success) {
-      return { success: true, isSuperAdmin: data.isSuperAdmin };
+    await signInWithEmailAndPassword(auth, email, password);
+    const adminDoc = await getDoc(doc(db, 'config', 'admins'));
+    let isSuper = email.toLowerCase() === 'paulo.matos@rttshop.com.br';
+    let isAdmin = isSuper;
+    
+    if (adminDoc.exists()) {
+      const list = adminDoc.data().list || [];
+      if (list.includes(email.toLowerCase())) isAdmin = true;
     }
-    return { success: false, message: data.message || 'Credenciais inválidas.' };
+    
+    if (!isAdmin) {
+      await auth.signOut();
+      return { success: false, message: 'Usuário não tem permissão de administrador.' };
+    }
+
+    if (isSuper && !adminDoc.exists()) {
+      await setDoc(doc(db, 'config', 'admins'), { list: [email.toLowerCase()] });
+    }
+
+    return { success: true, isSuperAdmin: isSuper };
   } catch (err: any) {
-    return { success: false, message: 'Erro de conexão com o servidor de autenticação.' };
+    return { success: false, message: 'Credenciais inválidas ou erro de conexão.' };
   }
 }
 
-/**
- * Busca lista de administradores autorizados
- */
-export async function fetchAdminList(
-  email: string,
-  password: string
-): Promise<{ success: boolean; admins: string[]; isSuperAdmin: boolean }> {
+export async function fetchAdminList(email: string, password: string) {
   try {
-    const res = await fetch('/api/admin/admins/list', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
-    if (res.ok && data.success) {
-      return { success: true, admins: data.admins || [], isSuperAdmin: !!data.isSuperAdmin };
+    const adminDoc = await getDoc(doc(db, 'config', 'admins'));
+    let admins = ['paulo.matos@rttshop.com.br'];
+    if (adminDoc.exists()) {
+      admins = adminDoc.data().list || admins;
+    }
+    return { success: true, admins, isSuperAdmin: email.toLowerCase() === 'paulo.matos@rttshop.com.br' };
+  } catch (e) {
+    return { success: false, admins: ['paulo.matos@rttshop.com.br'], isSuperAdmin: false };
+  }
+}
+
+export async function addAdminEmail(superAdminEmail: string, superAdminPassword: string, newAdminEmail: string) {
+  try {
+    const adminDocRef = doc(db, 'config', 'admins');
+    const adminDoc = await getDoc(adminDocRef);
+    let admins = ['paulo.matos@rttshop.com.br'];
+    if (adminDoc.exists()) admins = adminDoc.data().list || admins;
+    
+    if (!admins.includes(newAdminEmail.toLowerCase())) {
+      admins.push(newAdminEmail.toLowerCase());
+      await setDoc(adminDocRef, { list: admins }, { merge: true });
+    }
+    return { success: true, message: 'Administrador adicionado.', admins };
+  } catch (e) {
+    return { success: false, message: 'Erro ao adicionar admin.' };
+  }
+}
+
+export async function removeAdminEmail(superAdminEmail: string, superAdminPassword: string, targetAdminEmail: string) {
+  try {
+    const adminDocRef = doc(db, 'config', 'admins');
+    const adminDoc = await getDoc(adminDocRef);
+    let admins = ['paulo.matos@rttshop.com.br'];
+    if (adminDoc.exists()) admins = adminDoc.data().list || admins;
+    
+    admins = admins.filter(e => e !== targetAdminEmail.toLowerCase());
+    await setDoc(adminDocRef, { list: admins }, { merge: true });
+    
+    return { success: true, message: 'Administrador removido.', admins };
+  } catch (e) {
+    return { success: false, message: 'Erro ao remover admin.' };
+  }
+}
+
+export async function fetchEmailRules() {
+  try {
+    const rulesDoc = await getDoc(doc(db, 'config', 'emailRules'));
+    if (rulesDoc.exists()) {
+      return rulesDoc.data() as { defaultDomains: string[]; exceptions: string[] };
+    } else {
+      const defaultRules = { defaultDomains: ['@rttshop.com.br', '@rematiptop.com.br'], exceptions: [] };
+      setDoc(doc(db, 'config', 'emailRules'), defaultRules).catch(() => {});
+      return defaultRules;
     }
   } catch (e) {
-    console.warn('Erro ao buscar lista de administradores:', e);
-  }
-  return {
-    success: false,
-    admins: ['paulo.matos@rttshop.com.br'],
-    isSuperAdmin: email.trim().toLowerCase() === 'paulo.matos@rttshop.com.br',
-  };
-}
-
-/**
- * Concede permissão de administrador a um novo e-mail (apenas Paulo Matos)
- */
-export async function addAdminEmail(
-  superAdminEmail: string,
-  superAdminPassword: string,
-  newAdminEmail: string
-): Promise<{ success: boolean; message: string; admins?: string[] }> {
-  try {
-    const res = await fetch('/api/admin/admins/add', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ superAdminEmail, superAdminPassword, newAdminEmail }),
-    });
-    const data = await res.json();
-    return { success: !!data.success, message: data.message || '', admins: data.admins };
-  } catch (e: any) {
-    return { success: false, message: 'Erro de conexão com o servidor.' };
+    return { defaultDomains: ['@rttshop.com.br', '@rematiptop.com.br'], exceptions: [] };
   }
 }
 
-/**
- * Revoga permissão de administrador de um e-mail (apenas Paulo Matos)
- */
-export async function removeAdminEmail(
-  superAdminEmail: string,
-  superAdminPassword: string,
-  targetAdminEmail: string
-): Promise<{ success: boolean; message: string; admins?: string[] }> {
+export async function addEmailException(adminEmail: string, adminPassword: string, exception: string) {
   try {
-    const res = await fetch('/api/admin/admins/remove', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ superAdminEmail, superAdminPassword, targetAdminEmail }),
-    });
-    const data = await res.json();
-    return { success: !!data.success, message: data.message || '', admins: data.admins };
-  } catch (e: any) {
-    return { success: false, message: 'Erro de conexão com o servidor.' };
-  }
-}
-
-/**
- * Busca regras oficiais de e-mails corporativos e exceções autorizadas
- */
-export async function fetchEmailRules(): Promise<{ defaultDomains: string[]; exceptions: string[] }> {
-  try {
-    const res = await fetch('/api/email-rules');
-    if (res.ok) {
-      const data = await res.json();
-      return {
-        defaultDomains: data.defaultDomains || ['@rttshop.com.br', '@rematiptop.com.br'],
-        exceptions: data.exceptions || [],
-      };
+    const rulesDocRef = doc(db, 'config', 'emailRules');
+    const rulesDoc = await getDoc(rulesDocRef);
+    let exceptions: string[] = [];
+    if (rulesDoc.exists()) exceptions = rulesDoc.data().exceptions || [];
+    
+    if (!exceptions.includes(exception.toLowerCase())) {
+      exceptions.push(exception.toLowerCase());
+      await setDoc(rulesDocRef, { exceptions }, { merge: true });
     }
+    return { success: true, message: 'Exceção adicionada.', exceptions };
   } catch (e) {
-    console.warn('Erro ao carregar regras de e-mail:', e);
-  }
-  return {
-    defaultDomains: ['@rttshop.com.br', '@rematiptop.com.br'],
-    exceptions: [],
-  };
-}
-
-/**
- * Adiciona uma exceção de e-mail (admin)
- */
-export async function addEmailException(
-  adminEmail: string,
-  adminPassword: string,
-  exception: string
-): Promise<{ success: boolean; message: string; exceptions?: string[]; defaultDomains?: string[] }> {
-  try {
-    const res = await fetch('/api/admin/email-exceptions/add', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ adminEmail, adminPassword, exception }),
-    });
-    const data = await res.json();
-    return {
-      success: !!data.success,
-      message: data.message || '',
-      exceptions: data.exceptions,
-      defaultDomains: data.defaultDomains,
-    };
-  } catch {
-    return { success: false, message: 'Erro de conexão com o servidor.' };
+    return { success: false, message: 'Erro ao adicionar exceção.' };
   }
 }
 
-/**
- * Remove uma exceção de e-mail (admin)
- */
-export async function removeEmailException(
-  adminEmail: string,
-  adminPassword: string,
-  exception: string
-): Promise<{ success: boolean; message: string; exceptions?: string[]; defaultDomains?: string[] }> {
+export async function removeEmailException(adminEmail: string, adminPassword: string, exception: string) {
   try {
-    const res = await fetch('/api/admin/email-exceptions/remove', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ adminEmail, adminPassword, exception }),
-    });
-    const data = await res.json();
-    return {
-      success: !!data.success,
-      message: data.message || '',
-      exceptions: data.exceptions,
-      defaultDomains: data.defaultDomains,
-    };
-  } catch {
-    return { success: false, message: 'Erro de conexão com o servidor.' };
+    const rulesDocRef = doc(db, 'config', 'emailRules');
+    const rulesDoc = await getDoc(rulesDocRef);
+    let exceptions: string[] = [];
+    if (rulesDoc.exists()) exceptions = rulesDoc.data().exceptions || [];
+    
+    exceptions = exceptions.filter(e => e !== exception.toLowerCase());
+    await setDoc(rulesDocRef, { exceptions }, { merge: true });
+    
+    return { success: true, message: 'Exceção removida.', exceptions };
+  } catch (e) {
+    return { success: false, message: 'Erro ao remover exceção.' };
   }
 }
 
-/**
- * Atualiza a função / cargo de um operador (Exclusivo Admin)
- */
-export async function updateOperatorCargo(
-  adminEmail: string,
-  adminPassword: string,
-  targetEmail: string,
-  newCargo: string
-): Promise<{ success: boolean; message: string; user?: any }> {
+export async function updateOperatorCargo(adminEmail: string, adminPassword: string, targetEmail: string, newCargo: string) {
   try {
-    const res = await fetch('/api/admin/update-operator-cargo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ adminEmail, adminPassword, targetEmail, newCargo }),
-    });
-    const data = await res.json();
-    return { success: !!data.success, message: data.message || '', user: data.user };
-  } catch {
-    return { success: false, message: 'Erro de conexão ao atualizar função.' };
+    const userRef = doc(db, 'userProfiles', targetEmail.toLowerCase());
+    await setDoc(userRef, { cargo: newCargo }, { merge: true });
+    return { success: true, message: 'Cargo atualizado com sucesso.' };
+  } catch (e) {
+    return { success: false, message: 'Erro ao atualizar cargo.' };
   }
 }
 
-/**
- * Cadastra um novo operador diretamente pelo Admin
- */
-export async function createOperatorByAdmin(
-  adminEmail: string,
-  adminPassword: string,
-  userData: { email: string; nome: string; cargo: string; password?: string }
-): Promise<{ success: boolean; message: string; user?: any }> {
+export async function createOperatorByAdmin(adminEmail: string, adminPassword: string, userData: { email: string; nome: string; cargo: string; password?: string }) {
   try {
-    const res = await fetch('/api/admin/create-operator', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        adminEmail,
-        adminPassword,
-        email: userData.email,
-        nome: userData.nome,
-        cargo: userData.cargo,
-        password: userData.password,
-      }),
-    });
-    const data = await res.json();
-    return { success: !!data.success, message: data.message || '', user: data.user };
-  } catch {
-    return { success: false, message: 'Erro de conexão ao cadastrar operador.' };
-  }
-}
-
-/**
- * Verifica cadastro de um e-mail no servidor
- */
-export async function checkUserRegistration(
-  email: string
-): Promise<{ exists: boolean; allowed: boolean; nome?: string; cargo?: string; reason?: string }> {
-  try {
-    const res = await fetch(`/api/user/check?email=${encodeURIComponent(email)}`);
-    if (res.ok) {
-      return await res.json();
+    const userRef = doc(db, 'userProfiles', userData.email.toLowerCase());
+    const snap = await getDoc(userRef);
+    if (snap.exists()) {
+       return { success: false, message: 'Operador já cadastrado.' };
     }
-    const errData = await res.json().catch(() => ({}));
-    return { exists: false, allowed: false, reason: errData.reason || errData.message };
-  } catch {
+    await setDoc(userRef, {
+      nome: userData.nome,
+      cargo: userData.cargo,
+      createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString()
+    });
+    return { success: true, message: 'Operador pré-cadastrado com sucesso.', user: userData };
+  } catch (e) {
+    return { success: false, message: 'Erro ao cadastrar operador.' };
+  }
+}
+
+export async function checkUserRegistration(email: string) {
+  try {
+    const userRef = doc(db, 'userProfiles', email.toLowerCase());
+    const snap = await getDoc(userRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      return { exists: true, allowed: true, nome: data.nome, cargo: data.cargo };
+    }
+    return { exists: false, allowed: true };
+  } catch (e) {
     return { exists: false, allowed: true };
   }
 }
 
-/**
- * Busca histórico completo de acessos do servidor
- */
-export async function fetchServerLogs(
-  email: string,
-  password: string
-): Promise<{ success: boolean; logs: AccessLogEntry[]; usersList?: any[]; txtPreview?: string; message?: string }> {
+export async function fetchServerLogs(email: string, password: string) {
   try {
-    const res = await fetch('/api/admin/logs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
+    const logsQuery = query(collection(db, 'logs'), orderBy('dataHora', 'desc'), limit(1000));
+    const snapshot = await getDocs(logsQuery);
+    const logs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AccessLogEntry));
+    
+    const usersQuery = query(collection(db, 'userProfiles'), limit(1000));
+    const usersSnapshot = await getDocs(usersQuery);
+    const usersList = usersSnapshot.docs.map(doc => ({ email: doc.id, ...doc.data() }));
 
-    if (res.ok) {
-      const data = await res.json();
-      return {
-        success: true,
-        logs: data.logs || [],
-        usersList: data.usersList || [],
-        txtPreview: data.txtPreview || '',
-      };
-    }
-    return { success: false, logs: getLocalCachedLogs(), message: 'Não autorizado no servidor.' };
-  } catch (err) {
-    // Fallback para logs locais se servidor estiver offline
-    return {
-      success: true,
-      logs: getLocalCachedLogs(),
-      usersList: [],
-      message: 'Exibindo logs locais salvos neste dispositivo (servidor offline).',
-    };
+    return { success: true, logs, usersList };
+  } catch (e) {
+    return { success: false, logs: getLocalCachedLogs(), usersList: [], message: 'Erro ao buscar dados.' };
   }
 }
 
-/**
- * Gera e dispara o download do arquivo .txt
- */
+export async function sendResetPasswordEmail(targetEmail: string) {
+  try {
+    await sendPasswordResetEmail(auth, targetEmail.toLowerCase());
+    return { success: true, message: `E-mail de redefinição enviado para ${targetEmail}.` };
+  } catch (e) {
+    return { success: false, message: 'Erro ao enviar e-mail de redefinição.' };
+  }
+}
+
 export function triggerTxtDownload(filename: string, content: string): void {
   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -357,32 +266,11 @@ export function triggerTxtDownload(filename: string, content: string): void {
   URL.revokeObjectURL(url);
 }
 
-/**
- * Dispara o download oficial do rastreio_acessos.txt
- */
-export async function downloadLogsTxt(
-  email: string,
-  password: string,
-  fallbackLogs: AccessLogEntry[] = []
-): Promise<void> {
-  try {
-    const downloadUrl = `/api/admin/download-txt?email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`;
-    const res = await fetch(downloadUrl);
-    if (res.ok) {
-      const text = await res.text();
-      const dateStr = new Date().toISOString().slice(0, 10);
-      triggerTxtDownload(`rastreio_acessos_rtt_${dateStr}.txt`, text);
-      return;
-    }
-  } catch (e) {
-    console.warn('Download direto falhou, gerando a partir dos logs disponíveis:', e);
-  }
-
-  // Geração de fallback caso o endpoint direto não responda
+export async function downloadLogsTxt(email: string, password: string, fallbackLogs: AccessLogEntry[] = []): Promise<void> {
   const logsToExport = fallbackLogs.length > 0 ? fallbackLogs : getLocalCachedLogs();
   const lines = [
     '================================================================================',
-    'RTT CHECK - RELATÓRIO DE AUDITORIA E RASTREIO DE ACESSOS ONLINE',
+    'RTT CHECK - RELATÓRIO DE AUDITORIA E RASTREIO DE ACESSOS ONLINE (FIREBASE)',
     'REMA TIP TOP Brasil - Controle de Qualidade',
     `Exportado em: ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`,
     `Total de Registros: ${logsToExport.length}`,
@@ -398,9 +286,6 @@ export async function downloadLogsTxt(
   triggerTxtDownload(`rastreio_acessos_rtt_${dateStr}.txt`, lines.join('\n'));
 }
 
-/**
- * Dispara o download no formato .CSV para Excel ou Google Planilhas
- */
 export function downloadLogsCsv(logs: AccessLogEntry[]): void {
   const headers = ['Data e Hora', 'Ação', 'Técnico', 'E-mail', 'Função / Setor', 'Dispositivo', 'Detalhes'];
   const escapeCsv = (val: string) => `"${(val || '').replace(/"/g, '""')}"`;
@@ -428,7 +313,6 @@ export function downloadLogsCsv(logs: AccessLogEntry[]): void {
   URL.revokeObjectURL(url);
 }
 
-// Armazenamento da sessão ativa de admin na memória do navegador
 export function saveAdminSession(email: string, pass: string): void {
   try {
     sessionStorage.setItem(ADMIN_AUTH_KEY, JSON.stringify({ email, pass, ts: Date.now() }));

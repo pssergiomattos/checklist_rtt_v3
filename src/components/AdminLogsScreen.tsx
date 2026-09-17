@@ -128,22 +128,13 @@ export const AdminLogsScreen: React.FC<AdminLogsScreenProps> = ({
   // Redefinir senha de operador
   const handleResetPassword = async (targetEmail: string) => {
     try {
-      const res = await fetch('/api/admin/reset-operator-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          adminEmail,
-          adminPassword: adminPass,
-          targetEmail,
-          newPassword: newPasswordInput,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        triggerSuccessMsg(`Senha de ${targetEmail} redefinida para "${newPasswordInput}" com sucesso!`);
+      const { sendResetPasswordEmail } = await import('../utils/auditLogger');
+      const res = await sendResetPasswordEmail(targetEmail);
+      if (res.success) {
+        triggerSuccessMsg(res.message);
         setResetModalUser(null);
       } else {
-        triggerErrorMsg(data.message || 'Erro ao redefinir senha.');
+        triggerErrorMsg(res.message || 'Erro ao enviar e-mail.');
       }
     } catch {
       triggerErrorMsg('Erro ao se comunicar com o servidor.');
